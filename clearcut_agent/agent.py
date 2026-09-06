@@ -37,6 +37,8 @@ if not MODEL:
 # pinned separately from GOOGLE_CLOUD_LOCATION.
 MODEL_LOCATION = os.getenv("MODEL_LOCATION", "global")
 logger = logging.getLogger(__name__)
+# Hard per-request timeout: saturated models sometimes stall a request for many minutes; fail fast and retry instead.
+REQUEST_TIMEOUT_MS = int(os.getenv("GEMINI_REQUEST_TIMEOUT_MS", "90000"))
 
 
 class VertexGemini(Gemini):
@@ -44,7 +46,7 @@ class VertexGemini(Gemini):
 
     @cached_property
     def api_client(self) -> Client:
-        http_options = types.HttpOptions(headers=self._tracking_headers(), retry_options=self.retry_options)
+        http_options = types.HttpOptions(headers=self._tracking_headers(), retry_options=self.retry_options, timeout=REQUEST_TIMEOUT_MS)
         api_key = os.getenv("GOOGLE_API_KEY")
         project = os.getenv("GOOGLE_CLOUD_PROJECT")
         use_vertex = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "1").strip().lower() in ("1", "true", "yes")
@@ -104,7 +106,7 @@ class FallbackGemini(VertexGemini):
         return FallbackGemini._cache[slot]
 
     def _build_client(self, api_key: str | None) -> Client:
-        http_options = types.HttpOptions(headers=self._tracking_headers(), retry_options=self.retry_options)
+        http_options = types.HttpOptions(headers=self._tracking_headers(), retry_options=self.retry_options, timeout=REQUEST_TIMEOUT_MS)
         use_vertex = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "1").strip().lower() in ("1", "true", "yes")
         if not use_vertex:
             return Client(api_key=api_key, http_options=http_options)
