@@ -93,7 +93,7 @@ gcloud auth login && gcloud auth application-default login
 ./check_model.sh            # confirms $MODEL exists in Vertex AI Model Garden for your region
 ```
 
-**Model ID is never hard-coded.** Open Vertex AI Model Garden (or run `./check_model.sh`), pick the newest Flash-class Gemini model available in your region, and set `MODEL` in `.env`. The agent refuses to start without it.
+**Model ID is never hard-coded.** Open Vertex AI Model Garden (or run `./check_model.sh`), pick the newest Flash-class Gemini model, and set `MODEL` in `.env`. The agent refuses to start without it. As of September 2026 the newest GA Flash model is `gemini-3.8-flash` (released 2026-09-02), served from the `global` endpoint; `MODEL_LOCATION` pins the model endpoint independently of the Agent Engine / Cloud Run region.
 
 ### 2. Run locally
 ```bash

@@ -8,8 +8,9 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from google.adk.agents import LlmAgent, SequentialAgent
+from google.adk.models.google_llm import Gemini
 from google.adk.tools import FunctionTool
-from google.genai import types
+from google.genai import Client, types
 
 from .prompts import ADJUDICATE, EXTRACT, REPORT
 from .tools.parallel_research import research_entities
@@ -26,12 +27,35 @@ if not MODEL:
         "Gemini Flash model ID and set MODEL in .env (see .env.example)."
     )
 
+# Current Gemini Flash models on Vertex AI are served from the `global` endpoint (and the us/eu multi-regions),
+# not from single regions such as us-central1. Agent Engine itself deploys to a region, so the model location is
+# pinned separately from GOOGLE_CLOUD_LOCATION.
+MODEL_LOCATION = os.getenv("MODEL_LOCATION", "global")
+
+
+class VertexGemini(Gemini):
+    """ADK Gemini model whose client always targets Vertex AI at MODEL_LOCATION."""
+
+    @property
+    def api_client(self) -> Client:
+        return Client(
+            vertexai=True,
+            project=os.getenv("GOOGLE_CLOUD_PROJECT") or None,
+            location=MODEL_LOCATION,
+            http_options=types.HttpOptions(headers=self._tracking_headers()),
+        )
+
+
+def _model() -> VertexGemini:
+    return VertexGemini(model=_model(), retry_options=types.HttpRetryOptions(initial_delay=1, attempts=3))
+
+
 _json_cold = types.GenerateContentConfig(temperature=0, response_mime_type="application/json")
 _text_cold = types.GenerateContentConfig(temperature=0)
 
 extractor = LlmAgent(
     name="extractor",
-    model=MODEL,
+    model=_model(),
     description="Extracts every clearable entity from the screenplay as JSON.",
     instruction=EXTRACT,
     generate_content_config=_json_cold,
@@ -40,7 +64,7 @@ extractor = LlmAgent(
 
 researcher = LlmAgent(
     name="researcher",
-    model=MODEL,
+    model=_model(),
     description="Runs live Parallel Search research for every entity.",
     instruction=(
         "Call the research_entities tool exactly once. After it returns, reply with a single short line "
@@ -53,7 +77,7 @@ researcher = LlmAgent(
 
 adjudicator = LlmAgent(
     name="adjudicator",
-    model=MODEL,
+    model=_model(),
     description="Assigns RED/AMBER/GREEN risk to each entity using only the cited evidence.",
     instruction=ADJUDICATE + "\n\nENTITIES:\n{entities}\n\nEVIDENCE:\n{evidence}",
     generate_content_config=_json_cold,
@@ -63,7 +87,7 @@ adjudicator = LlmAgent(
 
 reporter = LlmAgent(
     name="reporter",
-    model=MODEL,
+    model=_model(),
     description="Assembles the final Markdown clearance report.",
     instruction=REPORT + "\n\nFINDINGS:\n{findings}\n\nENTITIES:\n{entities}",
     generate_content_config=_text_cold,
