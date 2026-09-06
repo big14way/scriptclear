@@ -7,6 +7,7 @@ import asyncio
 import logging
 import os
 import re
+import time
 from functools import cached_property
 from pathlib import Path
 from typing import ClassVar
@@ -85,24 +86,27 @@ def _is_daily_quota(err: Exception) -> bool:
 
 
 class FallbackGemini(VertexGemini):
-    """Gemini with quota handling.
+    """Gemini with quota- and saturation-aware scheduling across (model, key) slots.
 
-    * Transient 5xx errors are retried by the google-genai client (retry_options).
-    * HTTP 429 with a short retry hint (per-minute quota) is waited out, up to 3 times.
-    * HTTP 429 that signals an exhausted daily quota (or repeated 429s) advances to the next (key, model) slot for the
-      rest of the process: every model in MODEL_CHAIN on the current key, then the next key from the start of the chain.
-      A clearance run therefore never dies mid-pipeline while any slot has quota left.
+    Slots are ordered model-major: MODEL on every key first, then each fallback model on every key, so the strongest
+    model is used as long as any key has quota for it.
+      * transient 5xx are retried by the google-genai client (retry_options);
+      * a per-minute 429 is waited out (up to 3 times), then the slot is rested briefly;
+      * a daily-quota 429 rests that slot for an hour (quota is per project per model);
+      * a saturated model (503 / timeout) rests every slot of that model for 10 minutes, since saturation is not per key.
+    Each request starts from the first un-rested slot, so a run never dies while any slot is usable.
     """
 
-    _slot: ClassVar[int] = 0  # index into the (key, model) grid, shared across the process
-    _slots: ClassVar[list[tuple[str | None, str]]] = [(k, m) for k in (API_KEYS or [None]) for m in MODEL_CHAIN]
-
+    QUOTA_REST_S: ClassVar[int] = 3600
+    MINUTE_REST_S: ClassVar[int] = 120
+    SATURATED_REST_S: ClassVar[int] = 600
+    _slots: ClassVar[list[tuple[str, str | None]]] = [(m, k) for m in MODEL_CHAIN for k in (API_KEYS or [None])]
+    _rested: ClassVar[dict[int, float]] = {}  # slot index -> epoch seconds until which it is rested
     _cache: ClassVar[dict[int, VertexGemini]] = {}
 
     def _llm_for_slot(self, slot: int) -> VertexGemini:
-        """One cached VertexGemini per (key, model) slot so clients are reused across requests."""
         if slot not in FallbackGemini._cache:
-            key, model = FallbackGemini._slots[slot]
+            model, key = FallbackGemini._slots[slot]
             llm = VertexGemini(model=model, retry_options=self.retry_options)
             if key:
                 llm.__dict__["api_client"] = self._build_client(api_key=key)  # pre-seed the cached_property
@@ -110,46 +114,69 @@ class FallbackGemini(VertexGemini):
         return FallbackGemini._cache[slot]
 
     def _build_client(self, api_key: str | None) -> Client:
-        http_options = types.HttpOptions(headers=self._tracking_headers(), retry_options=self.retry_options, timeout=REQUEST_TIMEOUT_MS)
+        http_options = types.HttpOptions(
+            headers=self._tracking_headers(), retry_options=self.retry_options, timeout=REQUEST_TIMEOUT_MS
+        )
         use_vertex = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "1").strip().lower() in ("1", "true", "yes")
         if not use_vertex:
             return Client(api_key=api_key, http_options=http_options)
         return Client(vertexai=True, api_key=api_key, http_options=http_options)
 
-    @staticmethod
-    def _advance() -> bool:
-        if FallbackGemini._slot + 1 >= len(FallbackGemini._slots):
-            return False
-        FallbackGemini._slot += 1
-        return True
+    @classmethod
+    def _pick_slot(cls, tried: set[int]) -> int | None:
+        now = time.time()
+        for i in range(len(cls._slots)):
+            if i not in tried and cls._rested.get(i, 0) <= now:
+                return i
+        return None
+
+    @classmethod
+    def _rest(cls, slot: int, seconds: float, whole_model: bool = False) -> None:
+        until = time.time() + seconds
+        model = cls._slots[slot][0]
+        for i, (m, _) in enumerate(cls._slots):
+            if i == slot or (whole_model and m == model):
+                cls._rested[i] = max(cls._rested.get(i, 0), until)
 
     async def generate_content_async(self, llm_request, stream: bool = False):
-        attempt = 0
+        tried: set[int] = set()
+        minute_waits = 0
+        last_error: Exception | None = None
         while True:
-            key, model = FallbackGemini._slots[FallbackGemini._slot]
-            llm = self._llm_for_slot(FallbackGemini._slot)
+            slot = self._pick_slot(tried)
+            if slot is None:
+                if last_error:
+                    raise last_error
+                raise RuntimeError("No Gemini model/key slot is available; check MODEL, MODEL_FALLBACK and API keys.")
+            model, _ = FallbackGemini._slots[slot]
             llm_request.model = model
             try:
-                async for r in VertexGemini.generate_content_async(llm, llm_request, stream=stream):
+                async for r in VertexGemini.generate_content_async(self._llm_for_slot(slot), llm_request, stream=stream):
                     yield r
                 return
             except Exception as e:  # ADK wraps 429 in _ResourceExhaustedError; match on text to stay version-safe
+                last_error = e
                 text = f"{type(e).__name__}: {e}"
                 saturated = any(k in text for k in ("503", "UNAVAILABLE", "high demand", "Timeout", "timed out", "504"))
                 if "429" not in text and not saturated:
                     raise
-                if saturated or _is_daily_quota(e) or attempt >= 2:
-                    if not self._advance():
-                        raise
-                    key, model = FallbackGemini._slots[FallbackGemini._slot]
-                    logger.warning("Quota exhausted or model saturated; switching to model %s (key #%d) for the rest of this run.",
-                                   model, FallbackGemini._slot // len(MODEL_CHAIN) + 1)
-                    attempt = 0
-                    continue
-                attempt += 1
-                delay = _retry_delay_seconds(e)
-                logger.warning("429 on %s; retrying in %.0fs (attempt %d/3).", model, delay, attempt)
-                await asyncio.sleep(delay)
+                if saturated:
+                    logger.warning("Model %s saturated (%s); resting it for %ds.", model, text[:60], self.SATURATED_REST_S)
+                    self._rest(slot, self.SATURATED_REST_S, whole_model=True)
+                    tried.add(slot)
+                elif _is_daily_quota(e):
+                    logger.warning("Daily quota exhausted for %s on key #%d; resting that slot.", model, slot % max(len(API_KEYS), 1) + 1)
+                    self._rest(slot, self.QUOTA_REST_S)
+                    tried.add(slot)
+                elif minute_waits < 3:
+                    minute_waits += 1
+                    delay = _retry_delay_seconds(e)
+                    logger.warning("Per-minute 429 on %s; retrying in %.0fs (%d/3).", model, delay, minute_waits)
+                    await asyncio.sleep(delay)
+                else:
+                    self._rest(slot, self.MINUTE_REST_S)
+                    tried.add(slot)
+                    minute_waits = 0
 
 
 def _model() -> VertexGemini:
