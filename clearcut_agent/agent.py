@@ -42,7 +42,7 @@ if not MODEL:
 MODEL_LOCATION = os.getenv("MODEL_LOCATION", "global")
 logger = logging.getLogger(__name__)
 # Hard per-request timeout: saturated models sometimes stall a request for many minutes; fail fast and retry instead.
-REQUEST_TIMEOUT_MS = int(os.getenv("GEMINI_REQUEST_TIMEOUT_MS", "90000"))
+REQUEST_TIMEOUT_MS = int(os.getenv("GEMINI_REQUEST_TIMEOUT_MS", "60000"))
 
 
 class VertexGemini(Gemini):
@@ -134,8 +134,8 @@ class FallbackGemini(VertexGemini):
                     yield r
                 return
             except Exception as e:  # ADK wraps 429 in _ResourceExhaustedError; match on text to stay version-safe
-                text = str(e)
-                saturated = "503" in text or "UNAVAILABLE" in text or "high demand" in text
+                text = f"{type(e).__name__}: {e}"
+                saturated = any(k in text for k in ("503", "UNAVAILABLE", "high demand", "Timeout", "timed out", "504"))
                 if "429" not in text and not saturated:
                     raise
                 if saturated or _is_daily_quota(e) or attempt >= 2:
