@@ -1,0 +1,5 @@
+google-adk>=1.20,<2
+google-cloud-aiplatform[agent_engines,adk]
+parallel-web>=1.0.1
+pydantic>=2
+python-dotenv
