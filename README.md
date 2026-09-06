@@ -26,7 +26,7 @@ Today this costs low thousands of dollars per script, takes days to two weeks, a
 Paste a screenplay (plain text or Fountain). ClearCut:
 
 1. **Extracts** every clearable element with its scene and quoted context (Gemini, structured JSON).
-2. **Researches** each one live on the open web with category-specific queries via the **Parallel Search API** (deterministic Python fan-out, 8 concurrent workers).
+2. **Researches** each one live on the open web with category-specific queries via the **Parallel Search API** (a deterministic ADK stage: plain Python fan-out with 8 concurrent workers, no LLM in the loop, so it never stalls or hallucinates).
 3. **Adjudicates** each entity RED / AMBER / GREEN against a clearance rubric using only the retrieved evidence, citing title + URL (Gemini).
 4. **Reports**: a Markdown clearance report with an action-required table, review-recommended table, cleared list, recommended actions and tone-preserving substitutions. Downloadable as `.md` and `.json`.
 
@@ -38,7 +38,7 @@ Browser ── Cloud Run (FastAPI, web/main.py)
               ▼
 Vertex AI Agent Engine ──► ADK root_agent = SequentialAgent("clearcut_pipeline")
                                 ├── extractor    LlmAgent (Gemini, JSON)          → state["entities"]
-                                ├── researcher   LlmAgent + FunctionTool(research_entities)
+                                ├── researcher   custom BaseAgent (deterministic Python, no LLM)
                                 │                  └── Parallel Search fan-out    → state["evidence"]
                                 ├── adjudicator  LlmAgent (Gemini, JSON)          → state["findings"]
                                 └── reporter     LlmAgent (Gemini, Markdown)      → state["report"]
@@ -62,7 +62,7 @@ Risk rubric (in the adjudication prompt):
 | What | Where in code |
 |---|---|
 | **Gemini on Vertex AI** (every LLM stage; `GOOGLE_GENAI_USE_VERTEXAI=1`, model from `MODEL` env) | [`clearcut_agent/agent.py`](clearcut_agent/agent.py) |
-| **Google ADK** (`SequentialAgent`, `LlmAgent`, `FunctionTool`, state templating) | [`clearcut_agent/agent.py`](clearcut_agent/agent.py), [`clearcut_agent/tools/parallel_research.py`](clearcut_agent/tools/parallel_research.py) |
+| **Google ADK** (`SequentialAgent`, `LlmAgent`, custom `BaseAgent`, session state templating) | [`clearcut_agent/agent.py`](clearcut_agent/agent.py), [`clearcut_agent/tools/parallel_research.py`](clearcut_agent/tools/parallel_research.py) |
 | **Vertex AI Agent Engine** (hosts the agent; web UI calls `agent_engines.get(...).stream_query`) | [`deploy_agent_engine.sh`](deploy_agent_engine.sh), [`web/main.py`](web/main.py) `_agent_engine_events` |
 | **Cloud Run** (hosts the UI) | [`deploy_web.sh`](deploy_web.sh), [`Dockerfile`](Dockerfile) |
 | **Cloud Trace** (agent tracing, `--trace_to_cloud`) | [`deploy_agent_engine.sh`](deploy_agent_engine.sh) |

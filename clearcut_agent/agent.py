@@ -12,9 +12,13 @@ from pathlib import Path
 from typing import ClassVar
 
 from dotenv import load_dotenv
-from google.adk.agents import LlmAgent, SequentialAgent
+from typing import AsyncGenerator
+
+from google.adk.agents import BaseAgent, LlmAgent, SequentialAgent
+from google.adk.agents.invocation_context import InvocationContext
+from google.adk.events import Event
 from google.adk.models.google_llm import Gemini
-from google.adk.tools import FunctionTool
+from google.adk.tools.tool_context import ToolContext
 from google.genai import Client, types
 
 from .prompts import ADJUDICATE, EXTRACT, REPORT
@@ -130,13 +134,15 @@ class FallbackGemini(VertexGemini):
                     yield r
                 return
             except Exception as e:  # ADK wraps 429 in _ResourceExhaustedError; match on text to stay version-safe
-                if "429" not in str(e):
+                text = str(e)
+                saturated = "503" in text or "UNAVAILABLE" in text or "high demand" in text
+                if "429" not in text and not saturated:
                     raise
-                if _is_daily_quota(e) or attempt >= 2:
+                if saturated or _is_daily_quota(e) or attempt >= 2:
                     if not self._advance():
                         raise
                     key, model = FallbackGemini._slots[FallbackGemini._slot]
-                    logger.warning("Quota exhausted; switching to model %s (key #%d) for the rest of this run.",
+                    logger.warning("Quota exhausted or model saturated; switching to model %s (key #%d) for the rest of this run.",
                                    model, FallbackGemini._slot // len(MODEL_CHAIN) + 1)
                     attempt = 0
                     continue
@@ -148,7 +154,7 @@ class FallbackGemini(VertexGemini):
 
 def _model() -> VertexGemini:
     return FallbackGemini(model=MODEL, retry_options=types.HttpRetryOptions(
-            initial_delay=3, attempts=6, max_delay=30, exp_base=1.6, http_status_codes=_TRANSIENT
+            initial_delay=2, attempts=3, max_delay=8, exp_base=2, http_status_codes=_TRANSIENT
         ))
 
 
@@ -164,17 +170,30 @@ extractor = LlmAgent(
     output_key="entities",  # JSON string -> state["entities"]
 )
 
-researcher = LlmAgent(
+class ResearcherAgent(BaseAgent):
+    """Deterministic stage: runs the Parallel Search fan-out directly (no LLM call, nothing to stall or hallucinate)."""
+
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        tool_context = ToolContext(ctx)
+        result = await asyncio.to_thread(research_entities, tool_context)
+        actions = tool_context.actions  # carries the state_delta written by the tool
+        yield Event(
+            author=self.name,
+            invocation_id=ctx.invocation_id,
+            actions=actions,
+            content=types.Content(
+                role="model",
+                parts=[
+                    types.Part(function_response=types.FunctionResponse(name="research_entities", response=result)),
+                    types.Part(text=f"Researched {result['researched']} entities via Parallel Search."),
+                ],
+            ),
+        )
+
+
+researcher = ResearcherAgent(
     name="researcher",
-    model=_model(),
     description="Runs live Parallel Search research for every entity.",
-    instruction=(
-        "Call the research_entities tool exactly once. After it returns, reply with a single short line "
-        "stating how many entities were researched. Do not call any other tool."
-    ),
-    tools=[FunctionTool(research_entities)],
-    generate_content_config=_text_cold,
-    include_contents="none",  # the tool reads from state; the script text is not needed here
 )
 
 adjudicator = LlmAgent(
