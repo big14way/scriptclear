@@ -47,7 +47,7 @@ class VertexGemini(Gemini):
 
 
 def _model() -> VertexGemini:
-    return VertexGemini(model=_model(), retry_options=types.HttpRetryOptions(initial_delay=1, attempts=3))
+    return VertexGemini(model=MODEL, retry_options=types.HttpRetryOptions(initial_delay=1, attempts=3))
 
 
 _json_cold = types.GenerateContentConfig(temperature=0, response_mime_type="application/json")
