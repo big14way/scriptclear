@@ -100,6 +100,8 @@ class FallbackGemini(VertexGemini):
     QUOTA_REST_S: ClassVar[int] = 3600
     MINUTE_REST_S: ClassVar[int] = 120
     SATURATED_REST_S: ClassVar[int] = 600
+    ALL_RESTED_WAIT_S: ClassVar[int] = 30
+    TOTAL_BUDGET_S: ClassVar[int] = int(os.getenv("GEMINI_TOTAL_BUDGET_S", "480"))
     _slots: ClassVar[list[tuple[str, str | None]]] = [(m, k) for m in MODEL_CHAIN for k in (API_KEYS or [None])]
     _rested: ClassVar[dict[int, float]] = {}  # slot index -> epoch seconds until which it is rested
     _cache: ClassVar[dict[int, VertexGemini]] = {}
@@ -142,12 +144,25 @@ class FallbackGemini(VertexGemini):
         tried: set[int] = set()
         minute_waits = 0
         last_error: Exception | None = None
+        deadline = time.time() + self.TOTAL_BUDGET_S
         while True:
             slot = self._pick_slot(tried)
             if slot is None:
-                if last_error:
-                    raise last_error
-                raise RuntimeError("No Gemini model/key slot is available; check MODEL, MODEL_FALLBACK and API keys.")
+                # Every slot is rested (saturation everywhere). Rather than failing the run, wait for the earliest
+                # rest to expire and try again, until the overall budget for this request is spent.
+                if not FallbackGemini._slots or time.time() >= deadline:
+                    if last_error:
+                        raise last_error
+                    raise RuntimeError("No Gemini model/key slot is available; check MODEL, MODEL_FALLBACK and API keys.")
+                tried.clear()
+                soonest = min(FallbackGemini._rested.get(i, 0) for i in range(len(FallbackGemini._slots)))
+                wait = max(5.0, min(soonest - time.time(), self.ALL_RESTED_WAIT_S))
+                logger.warning("All Gemini slots are resting; waiting %.0fs before retrying.", wait)
+                await asyncio.sleep(wait)
+                # Un-rest the earliest slots so the retry can proceed even before their nominal rest ends.
+                for i in sorted(range(len(FallbackGemini._slots)), key=lambda i: FallbackGemini._rested.get(i, 0))[:2]:
+                    FallbackGemini._rested[i] = 0
+                continue
             model, _ = FallbackGemini._slots[slot]
             llm_request.model = model
             try:

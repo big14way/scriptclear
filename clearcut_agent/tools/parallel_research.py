@@ -18,10 +18,10 @@ from google.adk.tools.tool_context import ToolContext
 from parallel import Parallel
 
 MAX_ENTITIES = int(os.getenv("CLEARCUT_MAX_ENTITIES", "120"))
-MAX_RESULTS = int(os.getenv("CLEARCUT_MAX_RESULTS", "5"))
+MAX_RESULTS = int(os.getenv("CLEARCUT_MAX_RESULTS", "4"))
 MAX_WORKERS = int(os.getenv("CLEARCUT_MAX_WORKERS", "8"))
 SEARCH_MODE = os.getenv("CLEARCUT_SEARCH_MODE", "fast")  # turbo | fast | basic | advanced
-EXCERPT_CHARS = 400
+EXCERPT_CHARS = int(os.getenv("CLEARCUT_EXCERPT_CHARS", "300"))
 
 _client: Parallel | None = None
 
