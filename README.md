@@ -2,6 +2,8 @@
 
 > Every script gets checked for names, brands, and songs that could get a studio sued. It costs thousands and takes a week, so indie filmmakers skip it. **ClearCut runs a full clearance pass in minutes, with cited web evidence for every flag.**
 
+**Live demo:** https://clearcut-yy14.onrender.com (free tier; first load after idle can take ~1 minute)
+
 Built for **Agentic Cinema: The Blockbuster Hackathon** (Google Cloud × Parallel track).
 Stack: **Google ADK** `SequentialAgent` → **Gemini on Vertex AI** → **Vertex AI Agent Engine** (hosting) → **Parallel Search API** (live, cited research) → **Cloud Run** (web UI).
 
@@ -113,6 +115,9 @@ uvicorn web.main:app --reload --port 8000   # http://localhost:8000
 ```bash
 ./deploy_web.sh             # prints the public URL
 ```
+
+### Hosting note for the hackathon demo
+The public demo runs the same Docker image on Render's free tier with the ADK agent in-process (`AGENT_ENGINE_ID` unset) and Gemini reached through the Gemini Developer API, because the team's Google Cloud project has no billing account and Agent Engine / Cloud Run require one. Set `AGENT_ENGINE_ID` and `GOOGLE_GENAI_USE_VERTEXAI=1` on a billed project to switch to Vertex AI + Agent Engine with no code changes. `.github/workflows/keepalive.yml` pings the demo every 10 minutes so it never cold-starts.
 
 ## Sample script
 
