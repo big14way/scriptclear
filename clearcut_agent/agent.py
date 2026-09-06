@@ -43,7 +43,7 @@ if not MODEL:
 MODEL_LOCATION = os.getenv("MODEL_LOCATION", "global")
 logger = logging.getLogger(__name__)
 # Hard per-request timeout: saturated models sometimes stall a request for many minutes; fail fast and retry instead.
-REQUEST_TIMEOUT_MS = int(os.getenv("GEMINI_REQUEST_TIMEOUT_MS", "60000"))
+REQUEST_TIMEOUT_MS = int(os.getenv("GEMINI_REQUEST_TIMEOUT_MS", "45000"))
 
 
 class VertexGemini(Gemini):
@@ -181,7 +181,7 @@ class FallbackGemini(VertexGemini):
 
 def _model() -> VertexGemini:
     return FallbackGemini(model=MODEL, retry_options=types.HttpRetryOptions(
-            initial_delay=2, attempts=3, max_delay=8, exp_base=2, http_status_codes=_TRANSIENT
+            initial_delay=1, attempts=2, max_delay=4, exp_base=2, http_status_codes=_TRANSIENT
         ))
 
 
