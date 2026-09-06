@@ -93,9 +93,11 @@ gcloud auth login && gcloud auth application-default login
 ./check_model.sh            # confirms $MODEL exists in Vertex AI Model Garden for your region
 ```
 
+Three ways to reach Gemini are supported, selected in `.env` (see `.env.example`): Vertex AI on a billed project, Vertex AI Express Mode (API key, no billing), or the Gemini Developer API (AI Studio key). `MODEL_FALLBACK` names a second model that takes over for the rest of a run if the primary model's quota is exhausted; free-tier daily quotas on the newest model are small.
+
 **Model ID is never hard-coded.** Open Vertex AI Model Garden (or run `./check_model.sh`), pick the newest Flash-class Gemini model, and set `MODEL` in `.env`. The agent refuses to start without it. As of September 2026 the newest GA Flash model is `gemini-3.8-flash` (released 2026-09-02), served from the `global` endpoint; `MODEL_LOCATION` pins the model endpoint independently of the Agent Engine / Cloud Run region.
 
-### 2. Run locally
+### 2. Run locally (this is also how the hosted demo runs when no Agent Engine is configured)
 ```bash
 adk web                     # ADK dev UI; select clearcut_pipeline and paste samples/the_last_shift.fountain
 # or the full web UI, running the agent in-process (leave AGENT_ENGINE_ID empty):

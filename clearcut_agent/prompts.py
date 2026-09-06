@@ -33,8 +33,9 @@ entity_id, risk, rationale, evidence (list of {title, url, excerpt}), recommende
 No prose, no markdown fences."""
 
 REPORT = """Produce a Script Clearance Report in Markdown using the FINDINGS and ENTITIES below.
-1. A level-1 header "Script Clearance Report" followed by: script title (infer from the entities/scenes if obvious, else "Untitled"),
-   today's date, counts of RED / AMBER / GREEN, and a one-paragraph executive summary.
+1. A level-1 header "Script Clearance Report" followed by: script title (use the screenplay's Title: line or title page if
+   present in the conversation, else "Untitled"), the report date given below, counts of RED / AMBER / GREEN, and a
+   one-paragraph executive summary.
 2. Section "## Action required" listing RED items as a table: Entity | Category | Scene | Why | Evidence | Fix.
    Evidence cells contain Markdown links [title](url); Fix cells contain the recommended action and the suggested substitution.
 3. Section "## Review recommended" for AMBER items, same table.

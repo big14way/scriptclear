@@ -75,7 +75,7 @@ class Job:
         self.script = script
         self.started = time.time()
         self.finished: float | None = None
-        self.stage: str | None = None
+        self.stage: str | None = STAGES[0]  # the extractor starts immediately
         self.stages_done: list[str] = []
         self.entity_count: int | None = None
         self.researched: int | None = None
@@ -192,25 +192,42 @@ def _agent_engine_events(script: str, user_id: str) -> Iterator[dict]:
 
 
 def _local_events(script: str, user_id: str) -> Iterator[dict]:
+    """Run the ADK root_agent in-process and yield events as they happen (dev mode)."""
+    import queue
+
     from google.adk.runners import InMemoryRunner
     from google.genai import types
 
     from clearcut_agent.agent import root_agent
 
-    async def _run() -> list[dict]:
+    q: "queue.Queue[dict | None]" = queue.Queue()
+    _END = None
+
+    async def _run() -> None:
         runner = InMemoryRunner(agent=root_agent, app_name="clearcut")
         session = await runner.session_service.create_session(app_name="clearcut", user_id=user_id)
-        out: list[dict] = []
         async for ev in runner.run_async(
             user_id=user_id,
             session_id=session.id,
             new_message=types.Content(role="user", parts=[types.Part(text=script)]),
         ):
-            out.append(ev.model_dump(mode="json", exclude_none=True))
-        return out
+            q.put(ev.model_dump(mode="json", exclude_none=True))
 
-    # Run in a fresh event loop inside the worker thread; yield events after completion.
-    for ev in asyncio.run(_run()):
+    def _worker() -> None:
+        try:
+            asyncio.run(_run())
+        except Exception as e:  # propagate to the consumer thread
+            q.put({"_error": f"{type(e).__name__}: {e}"})
+        finally:
+            q.put(_END)
+
+    threading.Thread(target=_worker, daemon=True).start()
+    while True:
+        ev = q.get()
+        if ev is _END:
+            return
+        if "_error" in ev:
+            raise RuntimeError(ev["_error"])
         yield ev
 
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from datetime import date
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -139,5 +140,6 @@ def research_entities(tool_context: ToolContext) -> dict:
         results = list(ex.map(_search_one, entities))
 
     tool_context.state["evidence"] = json.dumps(results, ensure_ascii=False)
+    tool_context.state["run_date"] = date.today().strftime("%B %d, %Y")
     errors = sum(1 for r in results if r["evidence"] and r["evidence"][0]["title"] == "search_error")
     return {"researched": len(results), "search_errors": errors, "truncated": truncated}
