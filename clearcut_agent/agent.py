@@ -4,6 +4,7 @@ extractor (Gemini) -> researcher (Parallel Search fan-out tool) -> adjudicator (
 """
 
 import os
+from functools import cached_property
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -36,18 +37,19 @@ MODEL_LOCATION = os.getenv("MODEL_LOCATION", "global")
 class VertexGemini(Gemini):
     """ADK Gemini model whose client always targets Vertex AI at MODEL_LOCATION."""
 
-    @property
+    @cached_property
     def api_client(self) -> Client:
-        return Client(
-            vertexai=True,
-            project=os.getenv("GOOGLE_CLOUD_PROJECT") or None,
-            location=MODEL_LOCATION,
-            http_options=types.HttpOptions(headers=self._tracking_headers()),
-        )
+        http_options = types.HttpOptions(headers=self._tracking_headers())
+        api_key = os.getenv("GOOGLE_API_KEY")
+        project = os.getenv("GOOGLE_CLOUD_PROJECT")
+        if api_key and not project:
+            # Vertex AI Express Mode: API key, no project/location needed.
+            return Client(vertexai=True, api_key=api_key, http_options=http_options)
+        return Client(vertexai=True, project=project or None, location=MODEL_LOCATION, http_options=http_options)
 
 
 def _model() -> VertexGemini:
-    return VertexGemini(model=MODEL, retry_options=types.HttpRetryOptions(initial_delay=1, attempts=3))
+    return VertexGemini(model=MODEL, retry_options=types.HttpRetryOptions(initial_delay=5, attempts=6, max_delay=60, exp_base=2))
 
 
 _json_cold = types.GenerateContentConfig(temperature=0, response_mime_type="application/json")
