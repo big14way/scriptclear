@@ -73,7 +73,9 @@ def _retry_delay_seconds(err: Exception, default: float = 20.0) -> float:
 
 def _is_daily_quota(err: Exception) -> bool:
     text = str(err)
-    return "PerDay" in text or "per day" in text.lower() or ("RESOURCE_EXHAUSTED" in text and "Please retry in" not in text)
+    if "PerDay" in text or "per day" in text.lower() or "free_tier_requests" in text:
+        return True
+    return "RESOURCE_EXHAUSTED" in text and "Please retry in" not in text
 
 
 class FallbackGemini(VertexGemini):
