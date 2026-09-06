@@ -57,8 +57,12 @@ class VertexGemini(Gemini):
         return Client(vertexai=True, project=project or None, location=MODEL_LOCATION, http_options=http_options)
 
 
-# Optional second model used when the primary model's quota is exhausted (HTTP 429).
-MODEL_FALLBACK = os.getenv("MODEL_FALLBACK", "").strip()
+# Quota resilience. Free-tier daily quotas per model are small (20 requests/day on the newest Flash at the time of
+# writing), so a run may walk a chain of fallback models and a pool of API keys (one quota bucket per project).
+#   MODEL_FALLBACK   comma-separated models tried in order after MODEL when a daily quota is exhausted
+#   GOOGLE_API_KEYS  comma-separated API keys (Developer API / Express Mode); defaults to GOOGLE_API_KEY
+MODEL_CHAIN = [MODEL] + [m.strip() for m in os.getenv("MODEL_FALLBACK", "").split(",") if m.strip()]
+API_KEYS = [k.strip() for k in (os.getenv("GOOGLE_API_KEYS") or os.getenv("GOOGLE_API_KEY") or "").split(",") if k.strip()]
 _TRANSIENT = [500, 502, 503, 504]
 
 
@@ -69,7 +73,7 @@ def _retry_delay_seconds(err: Exception, default: float = 20.0) -> float:
 
 def _is_daily_quota(err: Exception) -> bool:
     text = str(err)
-    return "PerDay" in text or "per day" in text.lower() or "RESOURCE_EXHAUSTED" in text and "Please retry in" not in text
+    return "PerDay" in text or "per day" in text.lower() or ("RESOURCE_EXHAUSTED" in text and "Please retry in" not in text)
 
 
 class FallbackGemini(VertexGemini):
@@ -77,41 +81,64 @@ class FallbackGemini(VertexGemini):
 
     * Transient 5xx errors are retried by the google-genai client (retry_options).
     * HTTP 429 with a short retry hint (per-minute quota) is waited out, up to 3 times.
-    * HTTP 429 that signals an exhausted daily quota (or repeated 429s) switches to MODEL_FALLBACK
-      for the rest of the process, so a clearance run never dies mid-pipeline.
+    * HTTP 429 that signals an exhausted daily quota (or repeated 429s) advances to the next (key, model) slot for the
+      rest of the process: every model in MODEL_CHAIN on the current key, then the next key from the start of the chain.
+      A clearance run therefore never dies mid-pipeline while any slot has quota left.
     """
 
-    _use_fallback: ClassVar[bool] = False
+    _slot: ClassVar[int] = 0  # index into the (key, model) grid, shared across the process
+    _slots: ClassVar[list[tuple[str | None, str]]] = [(k, m) for k in (API_KEYS or [None]) for m in MODEL_CHAIN]
 
-    def _fallback(self) -> VertexGemini:
-        return VertexGemini(model=MODEL_FALLBACK, retry_options=self.retry_options)
+    _cache: ClassVar[dict[int, VertexGemini]] = {}
+
+    def _llm_for_slot(self, slot: int) -> VertexGemini:
+        """One cached VertexGemini per (key, model) slot so clients are reused across requests."""
+        if slot not in FallbackGemini._cache:
+            key, model = FallbackGemini._slots[slot]
+            llm = VertexGemini(model=model, retry_options=self.retry_options)
+            if key:
+                llm.__dict__["api_client"] = self._build_client(api_key=key)  # pre-seed the cached_property
+            FallbackGemini._cache[slot] = llm
+        return FallbackGemini._cache[slot]
+
+    def _build_client(self, api_key: str | None) -> Client:
+        http_options = types.HttpOptions(headers=self._tracking_headers(), retry_options=self.retry_options)
+        use_vertex = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "1").strip().lower() in ("1", "true", "yes")
+        if not use_vertex:
+            return Client(api_key=api_key, http_options=http_options)
+        return Client(vertexai=True, api_key=api_key, http_options=http_options)
+
+    @staticmethod
+    def _advance() -> bool:
+        if FallbackGemini._slot + 1 >= len(FallbackGemini._slots):
+            return False
+        FallbackGemini._slot += 1
+        return True
 
     async def generate_content_async(self, llm_request, stream: bool = False):
-        if MODEL_FALLBACK and FallbackGemini._use_fallback and MODEL_FALLBACK != self.model:
-            llm_request.model = MODEL_FALLBACK
-            async for r in self._fallback().generate_content_async(llm_request, stream=stream):
-                yield r
-            return
-        for attempt in range(4):
+        attempt = 0
+        while True:
+            key, model = FallbackGemini._slots[FallbackGemini._slot]
+            llm = self._llm_for_slot(FallbackGemini._slot)
+            llm_request.model = model
             try:
-                async for r in super().generate_content_async(llm_request, stream=stream):
+                async for r in VertexGemini.generate_content_async(llm, llm_request, stream=stream):
                     yield r
                 return
             except Exception as e:  # ADK wraps 429 in _ResourceExhaustedError; match on text to stay version-safe
                 if "429" not in str(e):
                     raise
-                can_fallback = bool(MODEL_FALLBACK) and MODEL_FALLBACK != self.model
-                if can_fallback and (_is_daily_quota(e) or attempt >= 2):
-                    logger.warning("Quota exhausted on %s; switching to %s for the rest of this run.", self.model, MODEL_FALLBACK)
-                    FallbackGemini._use_fallback = True
-                    llm_request.model = MODEL_FALLBACK
-                    async for r in self._fallback().generate_content_async(llm_request, stream=stream):
-                        yield r
-                    return
-                if attempt == 3:
-                    raise
+                if _is_daily_quota(e) or attempt >= 2:
+                    if not self._advance():
+                        raise
+                    key, model = FallbackGemini._slots[FallbackGemini._slot]
+                    logger.warning("Quota exhausted; switching to model %s (key #%d) for the rest of this run.",
+                                   model, FallbackGemini._slot // len(MODEL_CHAIN) + 1)
+                    attempt = 0
+                    continue
+                attempt += 1
                 delay = _retry_delay_seconds(e)
-                logger.warning("429 on %s; retrying in %.0fs (attempt %d/3).", self.model, delay, attempt + 1)
+                logger.warning("429 on %s; retrying in %.0fs (attempt %d/3).", model, delay, attempt)
                 await asyncio.sleep(delay)
 
 
