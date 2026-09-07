@@ -313,3 +313,27 @@ def job_report_json(job_id: str):
 @app.get("/healthz")
 def healthz():
     return {"ok": True, "backend": "agent_engine" if AGENT_ENGINE_ID else "local", "model": MODEL}
+
+
+# --------------------------------------------------------------------------- keep-alive
+# Free-tier hosts (e.g. Render) spin the container down after ~15 min without inbound traffic, which loses in-memory
+# jobs and adds a cold start. Pinging our own public URL counts as inbound traffic, so the demo stays warm.
+KEEPALIVE_URL = (os.getenv("KEEPALIVE_URL") or os.getenv("RENDER_EXTERNAL_URL") or "").rstrip("/")
+KEEPALIVE_SECONDS = int(os.getenv("KEEPALIVE_SECONDS", "600"))
+
+
+def _keepalive_loop() -> None:
+    import urllib.request
+
+    while True:
+        time.sleep(KEEPALIVE_SECONDS)
+        try:
+            urllib.request.urlopen(f"{KEEPALIVE_URL}/healthz", timeout=30).read()
+        except Exception:
+            pass
+
+
+@app.on_event("startup")
+def _start_keepalive() -> None:
+    if KEEPALIVE_URL and KEEPALIVE_SECONDS > 0:
+        threading.Thread(target=_keepalive_loop, daemon=True).start()
