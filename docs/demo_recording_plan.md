@@ -28,6 +28,9 @@ push redeploys the app and kills the run in progress.
    The four stage cards light up: Extract → Research (shows "Parallel Search fan-out on N entities") → Adjudicate → Report.
    In Remotion you will jump-cut the middle and overlay the caption `≈ 100 s real time`.
 4. When the result appears, let the page auto-scroll to the summary strip and hold 3 s.
+5. **Check the take:** the report must show **Coca-Cola** and **Purple Rain** in the RED table. Results vary slightly
+   between runs because the free-tier model that answers changes with load. If either is missing, run again and keep
+   the take where both are RED. CLIP-B must be recorded on that same result.
 
 ### CLIP-B `app_results.mov` — exploring the report (~90 s, will be trimmed to ~55 s)
 1. Start on the RED / AMBER / GREEN summary strip. Hold 2 s.

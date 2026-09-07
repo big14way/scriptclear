@@ -24,7 +24,7 @@ category — and run clearance. You can watch each stage: extraction, then Paral
 parallel, then adjudication, then the report. The whole pass takes about a minute and a half.
 
 **[1:05–2:00] Results**
-Four red flags, seven to review, and the rest cleared. First: Coca-Cola. A character throws the can at the villain —
+Red flags at the top, items to review below, and the rest cleared. First: Coca-Cola. A character throws the can at the villain —
 a famous trademark in a negative use. Every flag links to real evidence — this is the trademark record Parallel found
 just now — with a recommended fix and a substitution that keeps the tone. Second: Purple Rain. The character hums it
 and sings a line; that's a performance of a copyrighted song, and ClearCut suggests an original replacement. Under
