@@ -57,6 +57,31 @@ Risk rubric (in the adjudication prompt):
 | Business / location | Real business with same name + type + city, or real address tied to crime | Real business elsewhere | Fictional |
 | Identifier | Resolves to a real number / plate / site | Format valid, unresolved | 555 / obviously fake |
 
+## Why this doesn't exist yet, and how it pays for itself
+
+**The gap.** Clearance is done by a handful of specialist houses and studio legal teams, by hand. There is no self-serve
+tool because the job is not a database lookup: a name that was safe last year can belong to a newly famous person this
+year, a company can rebrand, a song can change hands. It needs live web research with traceable sources for every
+entity, then legal judgment on each one. That combination only became automatable with agent frameworks plus a search
+API built for agents, and it is a research problem before it is a legal one.
+
+**What is different about ClearCut.** Every flag carries a URL a human can check. The research stage is deterministic
+Python fan-out (no LLM loop to stall or hallucinate), category-specific query strategies mirror how a clearance analyst
+actually searches (name + profession + city; brand + owner + context; work + rights holder), and the report includes
+what was cleared, not just what was flagged, because E&O reviewers need to see the work.
+
+**Business model.** A full pass costs cents in Gemini and Parallel calls, versus $1,500–$4,000 and 5–14 days at a
+clearance house. Pricing that follows from that:
+
+| Tier | Who | Price |
+|---|---|---|
+| Per script | Indie producers, students, festival submissions | $49 per draft, first draft free |
+| Writers' room | Series rooms clearing every revision | $199 / month, unlimited drafts, change-tracking between drafts |
+| Professional | Clearance houses and studio legal | Per-seat licence, audit trail, export to E&O application format, Monitor API re-checks |
+
+The professional tier is the largest revenue line: clearance houses do not lose work to ClearCut, they use it to
+triage, so their analysts start from a cited report instead of a blank page.
+
 ## Where Google Cloud is used
 
 | What | Where in code |

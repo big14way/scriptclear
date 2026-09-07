@@ -1,7 +1,7 @@
 # ClearCut demo — voiceover script
 
 Read at a calm pace (~140 words/min). Each block is timed to the Remotion timeline in `demo_recording_plan.md`.
-Total ≈ 400 words ≈ 2:50. Do not improvise; if a take runs long, cut from block 6 first, never from block 4.
+Total ≈ 450 words ≈ 2:55 at 150 wpm; if a take runs long, cut the 'Nobody has automated it' sentence first, then the pricing sentence. Do not improvise; if a take runs long, cut from block 6 first, never from block 4.
 
 ---
 
@@ -11,7 +11,8 @@ Every script gets checked for names, brands, and songs that could get a studio s
 **[0:08–0:22] Problem card**
 It's called script clearance. Insurers require it before a film can be delivered. A clearance house charges thousands
 of dollars and takes up to two weeks — and every rewrite starts the clock again. So indie filmmakers skip it, and pay
-far more later in reshoots and blurred logos.
+far more later in reshoots and blurred logos. Nobody has automated it, because it isn't a database lookup: it's live
+web research with sources — which is exactly what agents are now good at.
 
 **[0:22–0:38] Architecture card**
 ClearCut is a four-stage agent pipeline built with Google's Agent Development Kit. Gemini extracts every clearable
@@ -40,7 +41,8 @@ source under MIT, with a Docker image that deploys to Cloud Run or Agent Engine 
 
 **[2:25–2:45] Impact card**
 Producers can clear every draft, not just the shooting script. Clearance professionals get a cited first pass instead
-of a blank page. Next: Parallel's Monitor API to re-flag a script automatically when the web changes.
+of a blank page. A pass costs us cents in API calls; priced per script at a tenth of a clearance house, it pays for
+itself on the first draft. Next: Parallel's Monitor API to re-flag a script automatically when the web changes.
 
 **[2:45–2:55] Closing card**
 ClearCut. Open source. Try it at the link.
