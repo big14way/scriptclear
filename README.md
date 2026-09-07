@@ -2,7 +2,7 @@
 
 > Every script gets checked for names, brands, and songs that could get a studio sued. It costs thousands and takes a week, so indie filmmakers skip it. **ClearCut runs a full clearance pass in minutes, with cited web evidence for every flag.**
 
-**Live demo:** https://clearcut-yy14.onrender.com (free tier; first load after idle can take ~1 minute)
+**Live demo:** https://clearcut-yy14.onrender.com · **Demo video (2:55):** https://youtu.be/F_YcwyvszF8
 
 Built for **Agentic Cinema: The Blockbuster Hackathon** (Google Cloud × Parallel track).
 Stack: **Google ADK** `SequentialAgent` → **Gemini on Vertex AI** → **Vertex AI Agent Engine** (hosting) → **Parallel Search API** (live, cited research) → **Cloud Run** (web UI).
