@@ -26,6 +26,8 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from starlette.requests import Request
 
+from clearcut_agent.tools.parallel_research import loads_lenient
+
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env", override=False)
 
@@ -59,7 +61,7 @@ def _loads(raw: Any, key: str) -> list[dict]:
         if not raw:
             return []
         try:
-            raw = json.loads(raw)
+            raw = loads_lenient(raw)
         except json.JSONDecodeError:
             return []
     if isinstance(raw, dict):

@@ -97,6 +97,24 @@ def _search_one(entity: dict) -> dict:
 _FENCE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$", re.IGNORECASE)
 
 
+def loads_lenient(text: str) -> Any:
+    """Parse the first complete JSON value in text, tolerating prose before it and extra data after it."""
+    text = text.strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    decoder = json.JSONDecoder()
+    for i, ch in enumerate(text):
+        if ch in "[{":
+            try:
+                value, _ = decoder.raw_decode(text, i)
+                return value
+            except json.JSONDecodeError:
+                continue
+    raise json.JSONDecodeError("no JSON value found", text, 0)
+
+
 def parse_entities(raw: Any) -> list[dict]:
     """Accept a JSON string (optionally fenced), a list, or an {"entities": [...]} dict."""
     if raw is None:
@@ -106,7 +124,7 @@ def parse_entities(raw: Any) -> list[dict]:
         if not raw:
             return []
         raw = _FENCE.sub("", raw)
-        raw = json.loads(raw)
+        raw = loads_lenient(raw)
     if isinstance(raw, dict):
         raw = raw.get("entities", [])
     if not isinstance(raw, list):
