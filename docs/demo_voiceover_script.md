@@ -24,13 +24,14 @@ category — and run clearance. You can watch each stage: extraction, then Paral
 parallel, then adjudication, then the report. The whole pass takes about a minute and a half.
 
 **[1:05–2:00] Results**
-Red flags at the top, items to review below, and the rest cleared. First: Coca-Cola. A character throws the can at the villain —
-a famous trademark in a negative use. Every flag links to real evidence — this is a source Parallel found just now, not a
-cached database — with a recommended fix and a substitution that keeps the tone. Second: Purple Rain. The character hums it
-and sings a line; that's a performance of a copyrighted song, and ClearCut suggests an original replacement. Under
-review recommended: a doctor whose name and specialty partially match real physicians — that's a live web check, so
-the answer can change as the web changes. And the cleared list matters too: Moby-Dick in the public domain, a 555 phone
-number — the agent shows its work on what it cleared, not just what it flagged. Everything downloads as Markdown or JSON for the E&O application.
+Five red flags, seven to review, and the rest cleared. First: Coca-Cola. A character hurls the can at the villain —
+a famous trademark in a negative use, so the fix is a generic soda can. Every flag links to real evidence. This is the
+copyright record Parallel found just now for the second flag, Purple Rain: publisher, ownership splits, all of it.
+The character hums it and sings a line — that's a performance of a copyrighted song — and ClearCut suggests an
+original melody instead. Under review recommended: a doctor whose name and specialty partially match real physicians.
+That's a live web check, so the answer can change as the web changes. And the cleared list matters too: Moby-Dick in
+the public domain, a 555 phone number — the agent shows its work on what it cleared, not just what it flagged.
+Everything downloads as Markdown or JSON for the E&O application.
 
 **[2:00–2:25] Code**
 Parallel is called at runtime for every entity, right here — category-specific queries, eight concurrent searches,
