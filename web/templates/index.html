@@ -145,7 +145,8 @@ function renderFindings(s){
   const order = {RED:0, AMBER:1, GREEN:2};
   const rows = [...s.findings].sort((a,b) => (order[a.risk] ?? 3) - (order[b.risk] ?? 3)).map(f => {
     const e = byId[f.entity_id] || {};
-    const ev = (f.evidence || []).filter(x => x.url).map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title || x.url)}</a>`).join('');
+    const short = t => t.length > 70 ? t.slice(0, 69).trim() + '…' : t;
+    const ev = (f.evidence || []).filter(x => x.url).map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener" title="${esc(x.title || x.url)}">${esc(short(x.title || x.url))}</a>`).join('');
     return `<tr><td><span class="pill ${esc(f.risk)}">${esc(f.risk)}</span></td>
       <td><b>${esc(e.text || f.entity_id)}</b><br><span class="ctx">${esc(e.category || '')} · ${esc(e.scene || '')}</span><br><span class="ctx">“${esc(e.context || '')}”</span></td>
       <td>${esc(f.rationale)}</td><td class="ev">${ev || '<span class="ctx">no sources</span>'}</td>

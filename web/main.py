@@ -257,7 +257,7 @@ def index(request: Request):
     return templates.TemplateResponse(
         request,
         "index.html",
-        {"model": MODEL, "backend": "Vertex AI Agent Engine" if AGENT_ENGINE_ID else "local ADK runner"},
+        {"model": MODEL, "backend": "Vertex AI Agent Engine" if AGENT_ENGINE_ID else "Google ADK in-process runner"},
     )
 
 

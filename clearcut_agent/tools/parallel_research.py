@@ -69,6 +69,16 @@ def _queries_for(entity: dict) -> tuple[str, list[str]]:
     )
 
 
+def _clean_title(title: str | None, url: str, limit: int = 80) -> str:
+    """Short, table-safe link text: no pipes/brackets/quotes/newlines, trimmed to `limit` chars."""
+    t = (title or "").strip() or url
+    t = re.sub(r"[|\[\]\n\r\"]+", " ", t)
+    t = re.sub(r"\s+", " ", t).strip(" -:")
+    if len(t) > limit:
+        t = t[: limit - 1].rstrip() + "…"
+    return t or url
+
+
 def _search_one(entity: dict) -> dict:
     objective, queries = _queries_for(entity)
     queries = [q for q in dict.fromkeys(q.strip() for q in queries) if q][:3]
@@ -81,7 +91,7 @@ def _search_one(entity: dict) -> dict:
         )
         evidence = [
             {
-                "title": r.title or r.url,
+                "title": _clean_title(r.title, r.url),
                 "url": r.url,
                 "excerpt": (r.excerpts[0][:EXCERPT_CHARS] if r.excerpts else ""),
             }
