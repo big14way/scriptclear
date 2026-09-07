@@ -165,8 +165,12 @@ async function poll(id){
   renderFindings(s);
   $('#dlMd').href = `/jobs/${id}/report.md`; $('#dlJson').href = `/jobs/${id}/report.json`;
   $('#result').style.display = 'block';
+  try { history.replaceState(null, '', `?job=${id}`); } catch (e) {}   // shareable link to this report
   $('#result').scrollIntoView({behavior:'smooth'});
 }
+// Reopen a finished report from a shared link (?job=ID)
+const existing = new URLSearchParams(location.search).get('job');
+if (existing) { $('#progress').style.display = 'block'; poll(existing); }
 runBtn.onclick = async () => {
   err.style.display = 'none'; $('#result').style.display = 'none';
   runBtn.disabled = true; $('#progress').style.display = 'block';
