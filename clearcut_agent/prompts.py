@@ -7,7 +7,9 @@ Extract EVERY element that a clearance house would check. Categories:
 - song_or_work: song titles or lyrics (sung, hummed, played, or quoted), books, poems, films, TV shows, artworks.
 - business_or_location: named bars, clinics, firms, schools, hotels, streets with numbers, real-sounding addresses, landmarks.
 - identifier: phone numbers, license plates, emails, URLs, account numbers, badge numbers.
-Ignore generic words (a bar, a phone, a car). Deduplicate: one entry per distinct element, using the scene where it first appears.
+Ignore generic words (a bar, a phone, a car). Deduplicate: one entry per distinct element. If an element appears more than
+once, use as its scene and context the occurrence with the greatest legal exposure (violent, criminal, negative, defamatory,
+or performed use beats a neutral mention), and summarise the other occurrences in attributes.usage_notes.
 For each element record the scene slugline (INT./EXT. line) and the exact line of dialogue or action it appears in as context.
 For songs, note in attributes whether it is "performed", "hummed", "played", or "title_only".
 For brands, note in attributes whether the usage is "negative", "neutral", or "positive".
