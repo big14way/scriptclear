@@ -99,7 +99,7 @@ class FallbackGemini(VertexGemini):
 
     QUOTA_REST_S: ClassVar[int] = 3600
     MINUTE_REST_S: ClassVar[int] = 120
-    SATURATED_REST_S: ClassVar[int] = 600
+    SATURATED_REST_S: ClassVar[int] = int(os.getenv("GEMINI_SATURATED_REST_S", "1800"))
     ALL_RESTED_WAIT_S: ClassVar[int] = 30
     TOTAL_BUDGET_S: ClassVar[int] = int(os.getenv("GEMINI_TOTAL_BUDGET_S", "480"))
     _slots: ClassVar[list[tuple[str, str | None]]] = [(m, k) for m in MODEL_CHAIN for k in (API_KEYS or [None])]
