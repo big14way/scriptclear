@@ -2,7 +2,10 @@
 
 Target: one video, **2:55 max** (judges stop at 3:00). Final assembly in Remotion: title/impact cards are rendered
 in Remotion; the screen clips below are recorded once, trimmed, and captioned. Record everything **before 10:00 WAT**
-(US night) when the Gemini free tier is fast; run one warm-up clearance first and confirm it finishes in about 100 s.
+(US night) when the Gemini free tier is least busy. **Always run one warm-up clearance first**, then record CLIP-A
+**within 30 minutes** of it: the server remembers which models are saturated for 30 minutes, so the warm-up absorbs
+the slow discovery and the recorded run goes straight to a working model. Do not push to GitHub while recording; every
+push redeploys the app and kills the run in progress.
 
 ## Setup (10 minutes, do once)
 - Browser: Chrome or Brave, fresh window, **1920×1080**, hide bookmarks bar, zoom **110%**, dark theme is built in.
